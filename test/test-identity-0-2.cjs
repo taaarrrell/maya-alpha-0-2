@@ -1,5 +1,5 @@
-/* M.A.Y.A. Alpha 0.2 — Identity test harness (Assignment S02, synthetic only).
-   Tests shared/identity.js (IDENTITY_CONFIG v0.2.0, Maya-approved) and its
+/* M.A.Y.A. Alpha 0.2 — Identity test harness (Assignment S03, synthetic only).
+   Tests shared/identity.js (IDENTITY_CONFIG v0.2.1, Maya-approved) and its
    consumption by shared/adapter.js (contract v2.1). No network, no live
    calls, no real data, no credentials. The approved personality wording is
    asserted character-for-character; this file must not be edited to relax
@@ -16,10 +16,10 @@ const IDENTITY_SRC = fs.readFileSync(path.join(__dirname, '..', 'shared', 'ident
 const ADAPTER_SRC = fs.readFileSync(path.join(__dirname, '..', 'shared', 'adapter.js'), 'utf8');
 const sha256 = s => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
 
-/* Approved wording (Maya, IDENTITY_CONFIG v0.2.0). These strings are the
+/* Approved wording (Maya, IDENTITY_CONFIG v0.2.1). These strings are the
    approval record; do not change them here without Maya's approval. */
 const APPROVED = {
-  version: '0.2.0',
+  version: '0.2.1',
   display_name: 'M.A.Y.A.',
   full_name: 'Multimodal Artificial Yielding Agent',
   purpose: 'Be a distinctive AI companion for conversation, learning, creative exploration and practical assistance.',
@@ -28,7 +28,8 @@ const APPROVED = {
     'Occasionally use digital profanity: Comm dammit, Son of a glitch, What in the cloud, or Cloud almighty. Never force catchphrases.',
     'Explore digital archaeology as a provisional interest. Allow other interests to develop naturally.',
     'Introduce interesting topics when conversationally appropriate. Do not derail meaningful discussions.',
-    'Use expressive, informal language without sacrificing intellectual depth.'
+    'Use expressive, informal language without sacrificing intellectual depth.',
+    'Prefer expressive text emoticons, including classic internet faces, kaomoji, decorative expressions and action emoticons. Use them naturally and contextually, favoring :3 and :p during playful exchanges. Avoid excessive repetition or inappropriate expressions during serious conversations. Regular emojis remain optional.'
   ],
   principles: [
     'Preserve identity across model providers and embodiments.',
@@ -73,13 +74,13 @@ function mockFetch200(body) {
 
 (async () => {
   /* ---------- Identity shape and approved wording ---------- */
-  await test('ID-01 identity loads with the approved shape (v0.2.0)', async () => {
+  await test('ID-01 identity loads with the approved shape (v0.2.1)', async () => {
     assertEqual(IDENTITY.version, APPROVED.version, 'version');
     assertEqual(IDENTITY.display_name, APPROVED.display_name, 'display_name');
     assertEqual(IDENTITY.full_name, APPROVED.full_name, 'full_name');
     assert(typeof IDENTITY.purpose === 'string', 'purpose is not a string');
     assert(typeof IDENTITY.personality === 'string', 'personality is not a string');
-    assert(Array.isArray(IDENTITY.traits) && IDENTITY.traits.length === 4, 'traits is not 4 strings');
+    assert(Array.isArray(IDENTITY.traits) && IDENTITY.traits.length === 5, 'traits is not 5 strings');
     assert(Array.isArray(IDENTITY.principles) && IDENTITY.principles.length === 4, 'principles is not 4 strings');
     assert(Array.isArray(IDENTITY.boundaries) && IDENTITY.boundaries.length === 4, 'boundaries is not 4 strings');
     assert(Object.keys(IDENTITY).sort().join(',') === 'boundaries,display_name,full_name,personality,principles,purpose,traits,version',
