@@ -48,7 +48,7 @@
       const raw = storage?.getItem(HISTORY_KEY);
       const saved = raw ? JSON.parse(raw) : null;
       if (saved?.version === 1 && Array.isArray(saved.turns)) {
-        history = saved.turns.slice(-HISTORY_LIMIT).filter(turn =>
+        history = saved.turns.slice(-2 * HISTORY_LIMIT).filter(turn =>
           turn && (turn.mode === 'live' || turn.mode === 'simulated') &&
           typeof turn.user === 'string' && turn.user.length <= 2000 &&
           typeof turn.reply === 'string' && turn.reply.length > 0);
@@ -65,7 +65,8 @@
 
     function renderHistory() {
       const batch = document.createDocumentFragment();
-      history.forEach(turn => appendTurn(batch, turn));
+      const mode = adapter.getMode();
+      history.filter(turn => turn.mode === mode).forEach(turn => appendTurn(batch, turn));
       log.replaceChildren(batch);
       log.scrollTop = log.scrollHeight;
     }
@@ -172,6 +173,7 @@
     connection.addEventListener('change', () => {
       if (clearing) return;
       adapter.setMode(connection.value);
+      renderHistory();
       feedback.textContent = '';
       render();
     });
@@ -192,8 +194,10 @@
       try {
         const reply = await adapter.send(text);
         if (request !== generation) return;
+        if (history.filter(turn => turn.mode === sentMode).length >= HISTORY_LIMIT) {
+          history.splice(history.findIndex(turn => turn.mode === sentMode), 1);
+        }
         history.push({ mode: sentMode, user: text, reply: reply.text });
-        history = history.slice(-HISTORY_LIMIT);
         saveHistory();
         renderHistory();
         input.value = '';

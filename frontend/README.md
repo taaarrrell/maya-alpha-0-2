@@ -1,7 +1,7 @@
-# E01 frontend
+# E02 frontend release candidate
 
-From the repository root, run `python -m http.server 8000 --bind 127.0.0.1`, then open `http://127.0.0.1:8000/frontend/`.
+Serve the repository root and open /frontend/. The page starts in Simulated and loads the reviewed shared adapter and identity. Live is explicit and sends only the current message, approved identity instructions and optional Live chain reference to the existing Worker. Use disposable test content only. Real Live mode requires an approved deployment under the existing allowed Pages origin.
 
-The preview starts in Simulated mode and uses the shared adapter and identity. Live · Synthetic exercises the same adapter path with in-memory responses. The page blocks real network connections.
+History and chain data are scoped to the release tab and survive reload. Simulated and Live transcript views are isolated. Reset clears both histories and the Live chain. PHINEAS and DREAM affect visuals only.
 
-Conversation and chain data are scoped to the current tab and survive reload. Reset clears the conversation and chain. PHINEAS and DREAM are visual-only.
+For verification, run the Playwright commands in tests/README.md. The suite injects synthetic transport and blocks any off-origin network traffic. The release entry point is also checked with an intercepted fetch.

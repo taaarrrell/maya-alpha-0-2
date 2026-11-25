@@ -36,6 +36,9 @@ def verify(browser, origin, profile):
             route.abort()
 
     page.route("**/*", local_only)
+    fixture = Path(__file__).resolve().parents[1] / "synthetic-bootstrap.js"
+    page.route(origin + "/frontend/live-bootstrap.js",
+               lambda route: route.fulfill(path=fixture, content_type="text/javascript"))
     assert page.goto(origin + "/frontend/").ok
     mode = page.locator("#connection")
     field = page.locator("#message")
@@ -123,8 +126,11 @@ def verify(browser, origin, profile):
     mode.select_option("live")
     settle()
     expect(image).to_have_attribute("src", "forms/prism-reply.png")
+    expect(messages).to_have_count(0)
+    mode.select_option("simulated")
     expect(messages.last).to_have_attribute("data-mode", "simulated")
     assert identity["full_name"] in messages.last.inner_text()
+    mode.select_option("live")
     expect(quota).to_have_text("Remaining: unknown")
     assert not calls()
     form.select_option("swarm")
@@ -135,6 +141,9 @@ def verify(browser, origin, profile):
     submit("first transport")
     mode.select_option("simulated")
     settle()
+    expect(messages).to_have_count(2)
+    expect(messages.last).to_have_attribute("data-mode", "simulated")
+    mode.select_option("live")
     expect(messages.last).to_have_attribute("data-mode", "live")
     assert "<b>First</b>" in messages.last.inner_text()
     assert messages.locator("b").count() == 0
@@ -195,10 +204,11 @@ def verify(browser, origin, profile):
     page.reload()
     expect(mode).to_have_value("simulated")
     expect(quota).to_be_hidden()
-    expect(messages).to_have_count(snapshot)
-    assert messages.first.get_attribute("data-mode") == "simulated"
-    assert messages.last.get_attribute("data-mode") == "live"
+    expect(messages).to_have_count(2)
+    assert messages.last.get_attribute("data-mode") == "simulated"
     mode.select_option("live")
+    expect(messages).to_have_count(snapshot)
+    assert messages.first.get_attribute("data-mode") == "live"
     expect(quota).to_have_text("Remaining: unknown")
     reply("Late reply", 16, delay=650)
     submit("discard on reset")
@@ -222,7 +232,7 @@ def verify(browser, origin, profile):
         "maya-alpha-chain-v0.1": "old-chain",
         "maya-alpha-conversation-v0.1": "old-history",
     }
-    print("PASS persisted mode-tagged history, isolated keys, busy, reset, and late-response isolation")
+    print("PASS persisted mode-isolated history, isolated keys, busy, reset, and late-response isolation")
 
     for width, height in [(320, 568), (390, 844), (430, 932), (844, 390), (1280, 900)]:
         page.set_viewport_size({"width": width, "height": height})
@@ -230,6 +240,64 @@ def verify(browser, origin, profile):
         assert page.locator("button, select").evaluate_all("items => items.every(e => e.getBoundingClientRect().height >= 44)")
     assert not errors and not external, (errors, external)
     print("PASS five viewport sizes, 44px controls, zero JavaScript errors and off-origin requests")
+    context.close()
+
+
+def verify_release_bootstrap(browser, origin, profile):
+    context = browser.new_context(**profile, reduced_motion="reduce")
+    context.add_init_script("""
+      window.releaseCalls = [];
+      window.fetch = (url, options) => {
+        releaseCalls.push({url, method: options.method, credentials: options.credentials,
+                           redirect: options.redirect, body: JSON.parse(options.body)});
+        return Promise.resolve(new Response(JSON.stringify({
+          text: 'Intercepted release reply', interaction_id: 'e02-test', remaining: 19
+        }), {status: 200, headers: {'Content-Type': 'application/json'}}));
+      };
+    """)
+    page = context.new_page()
+    off_origin = []
+    def restrict(route):
+        if route.request.url.startswith(origin + "/"):
+            route.continue_()
+        else:
+            off_origin.append(route.request.url)
+            route.abort()
+    page.route("**/*", restrict)
+    assert page.goto(origin + "/frontend/").ok
+    worker = "https://maya-alpha-m3-proxy.macman2028.workers.dev"
+    policy = page.locator('meta[http-equiv="Content-Security-Policy"]').get_attribute("content")
+    assert [entry.split() for entry in policy.split(";") if entry.strip().startswith("connect-src")] == [
+        ["connect-src", worker]
+    ]
+    mode = page.get_by_role("combobox", name="Connection mode")
+    expect(mode).to_have_value("simulated")
+    expect(mode).to_have_attribute("aria-describedby", "live-disclosure")
+    expect(page.locator("#live-disclosure")).to_contain_text("Gemini through a Cloudflare Worker")
+    expect(page.locator("#live-disclosure")).to_contain_text("private memories")
+    field = page.get_by_role("textbox", name="Your message")
+    field.fill("synthetic local turn")
+    field.press("Enter")
+    expect(page.locator(".message")).to_have_count(2)
+    assert page.evaluate("() => releaseCalls.length") == 0
+    mode.select_option("live")
+    expect(page.locator(".signal")).to_have_text("LIVE")
+    expect(page.locator(".message")).to_have_count(0)
+    assert page.evaluate("() => releaseCalls.length") == 0
+    field.fill("synthetic release check")
+    field.press("Enter")
+    expect(page.locator(".message").last).to_contain_text("Intercepted release reply")
+    expect(page.locator("#quota")).to_have_text("Remaining: 19")
+    [request] = page.evaluate("() => releaseCalls")
+    assert (request["url"], request["method"], request["credentials"], request["redirect"]) == (
+        worker + "/chat", "POST", "omit", "error",
+    )
+    assert request["body"]["messages"] == [{"role": "user", "text": "synthetic release check"}]
+    assert "previous_interaction_id" not in request["body"]
+    trait = page.evaluate("() => window.MAYA_IDENTITY_CONFIG.traits[4]")
+    assert trait in request["body"]["system_instruction"]
+    assert not off_origin
+    print("PASS release entry point, explicit Live, disclosure, one Worker destination, isolated payload")
     context.close()
 
 
@@ -248,6 +316,7 @@ def main():
                 profile.pop("default_browser_type")
                 print(args.engine, browser.version)
                 verify(browser, f"http://127.0.0.1:{server.server_port}", profile)
+                verify_release_bootstrap(browser, f"http://127.0.0.1:{server.server_port}", profile)
                 browser.close()
         finally:
             server.shutdown()
